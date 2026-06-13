@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/gateway/">
+    <Project Path="gateway/Commerce.Gateway/Commerce.Gateway.csproj" />
+  </Folder>
+  <Folder Name="/services/">
+    <Project Path="services/Commerce.Catalog/Commerce.Catalog.csproj" />
+    <Project Path="services/Commerce.Identity/Commerce.Identity.csproj" />
+    <Project Path="services/Commerce.Notification/Commerce.Notification.csproj" />
+    <Project Path="services/Commerce.Order/Commerce.Order.csproj" />
+  </Folder>
+  <Folder Name="/shared/">
+    <Project Path="shared/Commerce.Shared/Commerce.Shared.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Commerce.IntegrationTests/Commerce.IntegrationTests.csproj" />
+  </Folder>
+</Solution>

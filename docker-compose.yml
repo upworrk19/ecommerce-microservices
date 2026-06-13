@@ -1,0 +1,142 @@
+name: commerce
+
+x-jwt-common: &jwt
+  Jwt__Secret: ${JWT_SECRET}
+  Jwt__Issuer: commerce
+  Jwt__Audience: commerce
+
+services:
+  # ---------- infrastructure ----------
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+    ports: ["1433:1433"]
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  catalog-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: catalog
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports: ["5433:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  orders-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: orders
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports: ["5434:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports: ["5672:5672", "15672:15672"]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports: ["16686:16686", "4317:4317"]
+
+  seq:
+    image: datalust/seq:latest
+    environment:
+      ACCEPT_EULA: "Y"
+      # Seq 2025.2 refuses to boot without an admin password OR an explicit
+      # no-auth opt-out. For the local showcase we run it unauthenticated.
+      SEQ_FIRSTRUN_NOAUTHENTICATION: "true"
+    ports: ["5341:80"]
+
+  # ---------- application services ----------
+  identity:
+    build: { context: ., dockerfile: services/Commerce.Identity/Dockerfile }
+    environment:
+      ConnectionStrings__Default: "Server=mssql,1433;Database=identity;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=true"
+      <<: *jwt
+      Otlp__Endpoint: http://jaeger:4317
+      Seq__Url: http://seq:80
+    depends_on:
+      mssql: { condition: service_healthy }
+      jaeger: { condition: service_started }
+    ports: ["5101:8080"]
+
+  catalog:
+    build: { context: ., dockerfile: services/Commerce.Catalog/Dockerfile }
+    environment:
+      ConnectionStrings__Default: "Host=catalog-db;Database=catalog;Username=postgres;Password=${POSTGRES_PASSWORD}"
+      <<: *jwt
+      Otlp__Endpoint: http://jaeger:4317
+      Seq__Url: http://seq:80
+    depends_on:
+      catalog-db: { condition: service_healthy }
+    ports: ["5102:8080"]
+
+  order:
+    build: { context: ., dockerfile: services/Commerce.Order/Dockerfile }
+    environment:
+      ConnectionStrings__Default: "Host=orders-db;Database=orders;Username=postgres;Password=${POSTGRES_PASSWORD}"
+      Services__Catalog: http://catalog:8080
+      RabbitMq__Host: rabbitmq
+      <<: *jwt
+      Otlp__Endpoint: http://jaeger:4317
+      Seq__Url: http://seq:80
+    depends_on:
+      orders-db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    ports: ["5103:8080"]
+
+  notification:
+    build: { context: ., dockerfile: services/Commerce.Notification/Dockerfile }
+    environment:
+      Redis__Connection: redis:6379
+      RabbitMq__Host: rabbitmq
+      <<: *jwt
+      Otlp__Endpoint: http://jaeger:4317
+      Seq__Url: http://seq:80
+    depends_on:
+      redis: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    ports: ["5104:8080"]
+
+  gateway:
+    build: { context: ., dockerfile: gateway/Commerce.Gateway/Dockerfile }
+    environment:
+      <<: *jwt
+      Otlp__Endpoint: http://jaeger:4317
+      Seq__Url: http://seq:80
+      ReverseProxy__Clusters__identity__Destinations__d1__Address: http://identity:8080
+      ReverseProxy__Clusters__catalog__Destinations__d1__Address: http://catalog:8080
+      ReverseProxy__Clusters__order__Destinations__d1__Address: http://order:8080
+      ReverseProxy__Clusters__notification__Destinations__d1__Address: http://notification:8080
+    depends_on: [identity, catalog, order, notification]
+    ports: ["8080:8080"]

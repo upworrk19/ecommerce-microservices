@@ -1,0 +1,36 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <!-- Pinned to 7.x: the last Apache-2.0 (free) release. FA 8+ requires a paid license. -->
+    <PackageReference Include="FluentAssertions" Version="7.2.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.9" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="Testcontainers" Version="4.12.0" />
+    <PackageReference Include="Testcontainers.MsSql" Version="4.12.0" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.12.0" />
+    <PackageReference Include="Testcontainers.RabbitMq" Version="4.12.0" />
+    <PackageReference Include="Testcontainers.Redis" Version="4.12.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\services\Commerce.Identity\Commerce.Identity.csproj" />
+    <ProjectReference Include="..\..\services\Commerce.Catalog\Commerce.Catalog.csproj" />
+    <ProjectReference Include="..\..\services\Commerce.Order\Commerce.Order.csproj" />
+    <ProjectReference Include="..\..\services\Commerce.Notification\Commerce.Notification.csproj" />
+  </ItemGroup>
+
+</Project>
